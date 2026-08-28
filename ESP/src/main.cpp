@@ -23,12 +23,12 @@ IPAddress local_IP(192,168,0,47);
 IPAddress gateway(192,168,0,47);
 IPAddress subnet(255,255,0,0);
 
-const char* ssid = "tunel";                 // NOME DA REDE 
-const char* passw = "gvento123" ;           // SENHA DA REDE
+const char* ssid = "rede";                 // NOME DA REDE 
+const char* passw = "senharede" ;           // SENHA DA REDE
 
 const char* mqtt_server = "192.168.0.180";  // SERVIDOR MQTT
-const char* mqtt_user = "tunel";            // USER MQTT
-const char* mqtt_pass = "gvento123";        // SENHA MQTT
+const char* mqtt_user = "usuariomqtt";            // USER MQTT
+const char* mqtt_pass = "senhamqtt";        // SENHA MQTT
 
 String clientId = "Ventilador-";            // ID MQTT - ESP32
 
