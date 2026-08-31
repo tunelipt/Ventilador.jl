@@ -1,12 +1,14 @@
 name = "Ventilador"
 uuid = "5d98bd70-fb9d-4de9-8668-82594df3fe41"
-authors = ["glrme-arauo <glrme_araujo@hotmail.com> and contributors"]
 version = "0.1.0"
+authors = ["glrme-arauo <glrme_araujo@hotmail.com> and contributors"]
 
 [deps]
+DAQCore = "7b03aed3-9854-4651-ba28-76b88bef8818"
 MQTTClient = "985f35cc-2c3d-4943-b8c1-f0931d5f0959"
 
 [compat]
+DAQCore = "0.2.0"
 MQTTClient = "0.3.1"
 julia = "1.10"
 

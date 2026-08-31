@@ -1,6 +1,6 @@
 module Ventilador
 
-export ventilador , connect, run!,stop!,sendRPM!
+export TunelRPM, connect, run!,stop!,sendRPM!
 using MQTTClient
 
 
@@ -21,78 +21,157 @@ function callback(topic,payload)
 
 end
 
-mutable struct connect   ## Estrutura de dados para armazenar as informações do ventilador 
-    lab::String             #laboratório
+mutable struct TunelRPM   ## Estrutura de dados para armazenar as informações do ventilador
+    "Nome do dispositivo"
+    name::String
+    "Broker MQTT usado"
     broker::String          #IP do broker
+    "Porta do broker MQTT"
     port::Int               # Porta do broker
-    rpm_topic::String       #Topico do RPM
-    status_topic::String    #Topico do Status
-
-
-
-function connect(lab::String)
-   if (lab == "tunel")
-        print("Configurando Conexão MQTT com o ventilador do túnel de vento\n")
-        broker = "192.168.0.180"
-        port = 1883
-        usuario = "tunel"
-        senha = "gvento123" 
-        devname = "TUNEL"
-
-
-        user = User(usuario, senha)
-        client, connection = MakeConnection(broker, port; user=user)
-        MQTTClient.connect(client, connection)
- 
-        MQTTClient.subscribe(client, rpm_topic,callback,qos=QOS_2)
-        MQTTClient.subscribe(client, status_topic,callback,qos=QOS_2)
-
-    elseif (lab =="anemometria")
-        print("Configurando Conexão MQTT com o ventilador do laboratório de Anemometria\n")
-        broker = "192.168.0.181"
-        port = 4747
-        usuario = ""
-        senha = " " 
-        devname = "anemometria"
-        
-        user = User(usuario, senha)
-        client, connection = MakeConnection(broker, port; user=user)
-        MQTTClient.connect(client, connection)
- 
-        MQTTClient.subscribe(client, rpm_topic,callback,qos=QOS_2)
-        MQTTClient.subscribe(client, status_topic,callback,qos=QOS_2)
-    else
-        error("Laboratório desconhecido: $lab. Use \"tunel\" ou \"anemometria\".")
-    end
-    
-    #new( lab,broker, port, rpm_topic, status_topic)
-    return client
-    
-    end
+    "Usuário do MQTT. Vazio se for anônimo"
+    user::String
+    "Senha do MQTT. Vazio se for anônimo"
+    passwd::String
+    "Tópico contendo RPM"
+    topic_rpm::String       #Topico do RPM
+    topic_status::String    # Tópico do status
+    "Cliente do MQTT"
+    client::Client
+    """
+    Status da última programação:
+    (RPM, Status)
+    RPM - Inteiro com o RPM programado
+    Status - Bool, true se estiver run, false se estiver stop
+    """
+    status::Tuple{Int,Bool}
 end
 
-function Base.show(io::IO, v::connect) ## ,Função para mostrar as informações do ventilador
-    println(io, "Laboratório : ", v.lab) 
+
+function TunelRPM(toml::AbstractDict)
+    broker = toml["broker"]
+    ks = keys(toml)
+
+    if "name" ∉ ks
+        error("O campo `name` deve ser configurado!")
+    else
+        name = toml["name"]
+    end
+    
+    if "port" in ks
+        port = toml["port"]
+    else
+        port = 1883
+    end
+
+    if "user" in ks
+        user = toml["user"]
+        passwd = toml["password"]
+    else
+        user = ""
+        passwd = ""
+    end
+
+    uu = User(user, passwd)
+    if "rpm" in ks
+        topic_rpm = toml["rpm"]
+    else
+        topic_rpm = name * "/rpm"
+    end
+
+    if "status" in ks
+        topic_status = toml["status"]
+    else
+        topic_status = name * "/status"
+    end
+
+    client = reconnect!(broker, port, uu)
+
+    return TunelRPM(name, broker, port, user, passwd, topic_rpm, topic_status,
+                    client, (0, false))
+end
+
+function reconnect!(broker, port, user)
+
+    if user.name == ""
+        client, conn = MakeConnection(broker, port)
+    else
+        client, conn = MakeConnection(broker, port; user=user)
+    end
+    
+    connect(client, conn)
+    return client
+end
+
+function reconnect!(t::TunelRPM)
+    u = User(t.user, t.passwd)
+    broker = t.broker
+    port = t.port
+    client = reconnect!(broker, port, user)
+    t.client = client
+end
+
+
+function Base.show(io::IO, v::TunelRPM) ## ,Função para mostrar as informações do ventilador
+    println(io, "Nome : ", v.name) 
     println(io, "IP broker   : ", v.broker)
     println(io, "Porta       : ", v.port)
-    println(io, "Topico RPM  : ", v.rpm_topic)
-    println(io, "Topico Status: ", v.status_topic)  
+    println(io, "Topico RPM  : ", v.topic_rpm)
+    println(io, "Topico Status: ", v.topic_status)  
 end
            
-function run!(tunel)
-println( "Ligando tunel")
-  MQTTClient.publish(tunel, status_topic, "run"; qos=QOS_2)
-
+function run!(tunel::TunelRPM)
+    MQTTClient.publish(tunel.client, tunel.topic_status, "run"; qos=QOS_2)
+    tunel.status = (45, true)
+    
 end
 
 
-function stop!(tunel)
-    println( "Desligando tunel")
-   MQTTClient.publish(tunel, status_topic, "stop"; qos=QOS_2)
+function stop!(tunel::TunelRPM)
+   MQTTClient.publish(tunel.client, tunel.topic_status, "stop"; qos=QOS_2)
+    tunel.status = (0, false)
+end
+function sendRPM!(tunel::TunelRPM, rpm)
+    if tunel.status[2]
+        MQTTClient.publish(tunel.client, tunel.topic_rpm, string(rpm); qos=QOS_2)
+        tunel.status = (rpm, true)
+    end
+    
+    
+end
 
+# Implementar a API do DAQCore
+
+import DAQCore
+DAQCore.devname(tunel::TunelRPM) = tunel.name
+DAQCore.devtype(tunel::TunelRPM) = "TunelRPM"
+DAQCore.numaxes(tunel::TunelRPM) = 1
+DAQCore.axesnames(tunel::TunelRPM) = ["rpm"]
+
+function DAQCore.moveto!(tunel::TunelRPM, rpm)
+
+    rold, status = tunel.status
+
+    if !status && rpm > 0
+        run!(tunel)
+    end
+    st = true
+    
+    if rpm == 0
+        stop!(tunel)
+        st = false
+    else
+        sendRPM!(tunel, rpm)
+    end
+    
+    tunel.status = (rpm, st)
+    
 end
-function sendRPM!(tunel, rpm)
-    println( "Enviando RPM: ", rpm)
-    MQTTClient.publish(tunel, rpm_topic, string(rpm); qos=QOS_2)
-end
+
+
+DAQCore.devposition(tunel::TunelRPM) = tunel.status[1]
+
+        
+    
+    
+
 end #module Ventilador

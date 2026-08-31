@@ -43,14 +43,14 @@ PubSubClient client(espClient);
 
 
 void wifi(){                                                        // Configuração e conexão Wifi
-WiFi.mode(WIFI_STA);                        
-if(!WiFi.config(local_IP,gateway,subnet)){
-}
-WiFi.begin(ssid,passw);
+  WiFi.mode(WIFI_STA);                        
+  if(!WiFi.config(local_IP,gateway,subnet)){
+  }
+  WiFi.begin(ssid,passw);
 
-while(WiFi.status() != WL_CONNECTED){
-    delay(1000);
-}
+  while(WiFi.status() != WL_CONNECTED){
+      delay(1000);
+  }
 }
 
 
