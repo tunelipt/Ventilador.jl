@@ -168,7 +168,7 @@ function DAQCore.moveto!(tunel::TunelRPM, rpm)
 end
 
 
-DAQCore.devposition(tunel::TunelRPM) = tunel.status[1]
+DAQCore.devposition(tunel::TunelRPM) = tunel.status
 
         
     
